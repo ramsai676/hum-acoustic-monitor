@@ -161,6 +161,24 @@
   .err { color: var(--bad); font-size: 14px; margin-top: 14px; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
+  /* ---- footer ---- */
+  footer {
+    margin-top: 26px; padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint); font-size: 13px;
+  }
+  footer .contact { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  footer b { color: var(--ink-dim); font-weight: 550; }
+  footer a {
+    color: var(--ink-dim); text-decoration: none;
+    border-bottom: 1px solid var(--line);
+    transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    footer a:hover { color: var(--well); border-color: var(--well); }
+  }
+  footer .built { margin-top: 8px; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition-duration: 120ms !important; }
     @starting-style { .view.on > * { opacity: 0; transform: none; } }
@@ -259,6 +277,16 @@
       <span class="note" style="border:0;margin:0;padding:0" id="stats"></span>
     </div>
   </section>
+
+  <footer>
+    <div class="contact">
+      <b>Contact</b>
+      <a href="tel:+918639452463">+91 8639452463</a>
+      <span>·</span>
+      <a href="tel:+918688127542">+91 8688127542</a>
+    </div>
+    <div class="built">Hum — built for VoltHacks 2026. Runs on-device; no audio leaves this tab.</div>
+  </footer>
 
 </main>
 
