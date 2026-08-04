@@ -1,0 +1,4 @@
+# The product (web/index.html) has NO dependencies — it is one HTML file.
+# These are only needed to re-run the validation.
+numpy>=1.26
+scikit-learn>=1.4   # roc_auc_score only

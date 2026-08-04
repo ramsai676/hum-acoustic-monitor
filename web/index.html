@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hum — machines tell you before they break</title>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+    --bg: #08090b;
+    --panel: #101216;
+    --line: #1e232b;
+    --ink: #e9ecf2;
+    --ink-dim: #8b93a1;
+    --ink-faint: #59606e;
+
+    --well: #5eead4;
+    --warn: #fbbf24;
+    --bad: #fb7185;
+    --accent: #60a5fa;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: grid;
+    place-items: start center;
+    padding: clamp(20px, 5vw, 48px) 18px 64px;
+  }
+
+  main { width: 100%; max-width: 780px; }
+
+  h1 {
+    font-size: clamp(26px, 5vw, 34px); font-weight: 600;
+    letter-spacing: -0.025em; margin: 0 0 6px;
+  }
+  .sub { color: var(--ink-dim); margin: 0 0 30px; font-size: 15px; }
+
+  /* ---- panels ---- */
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px;
+  }
+  .panel + .panel { margin-top: 16px; }
+
+  /* Views swap; never animate from nothing. */
+  .view { display: none; }
+  .view.on { display: block; }
+  .view.on > * {
+    opacity: 1; transform: translateY(0);
+    transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
+  }
+  @starting-style {
+    .view.on > * { opacity: 0; transform: translateY(8px); }
+  }
+
+  /* ---- buttons ---- */
+  button {
+    font: inherit; font-weight: 550; color: #06120f;
+    background: var(--well); border: 0; border-radius: 10px;
+    padding: 12px 22px; cursor: pointer;
+    transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out);
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.ghost {
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    button:not(:disabled):hover { opacity: 0.9; }
+  }
+
+  /* ---- steps ---- */
+  .steps { display: grid; gap: 14px; margin: 22px 0 26px; }
+  .step { display: grid; grid-template-columns: 26px 1fr; gap: 13px; align-items: start; }
+  .step b {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 12px; font-weight: 600;
+    background: #1a1f27; color: var(--ink-dim);
+  }
+  .step p { margin: 0; font-size: 14.5px; }
+  .step small { color: var(--ink-faint); font-size: 13px; }
+
+  /* ---- baseline progress ---- */
+  .ring { position: relative; width: 132px; height: 132px; margin: 4px auto 18px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+  .ring .track { stroke: #191d24; }
+  .ring .val { stroke: var(--well); transition: stroke-dashoffset 320ms linear; }
+  .ring b {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---- verdict ---- */
+  .verdict { text-align: center; padding: 6px 0 2px; }
+  .verdict .big {
+    font-size: clamp(30px, 6vw, 40px); font-weight: 600;
+    letter-spacing: -0.025em; margin: 0 0 4px;
+    transition: color 300ms var(--ease-in-out);
+  }
+  .verdict .why { color: var(--ink-dim); margin: 0; font-size: 14.5px; min-height: 22px; }
+  .well .big { color: var(--well); }
+  .warn .big { color: var(--warn); }
+  .bad  .big { color: var(--bad); }
+
+  /* ---- meter ---- */
+  .meter {
+    height: 6px; background: #191d24; border-radius: 999px;
+    margin: 20px 0 8px; overflow: hidden; position: relative;
+  }
+  .meter i {
+    display: block; height: 100%; border-radius: 999px;
+    background: var(--well); transform-origin: left center;
+    transition: transform 260ms var(--ease-out), background-color 300ms var(--ease-in-out);
+  }
+  .meter .mark {
+    position: absolute; top: -3px; width: 2px; height: 12px;
+    background: var(--ink-faint); border-radius: 1px;
+  }
+  .scale {
+    display: flex; justify-content: space-between;
+    color: var(--ink-faint); font-size: 11.5px; letter-spacing: .03em;
+  }
+
+  canvas { width: 100%; height: 132px; display: block; border-radius: 8px; }
+
+  h3 {
+    margin: 0 0 12px; font-size: 11.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--ink-dim);
+  }
+
+  /* ---- band explanation ---- */
+  .band { display: grid; grid-template-columns: 122px 1fr auto; gap: 12px; align-items: center; padding: 7px 0; }
+  .band + .band { border-top: 1px solid #171b21; }
+  .band .hz { color: var(--ink-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .band .track2 { height: 4px; background: #191d24; border-radius: 999px; overflow: hidden; }
+  .band .track2 i {
+    display: block; height: 100%; border-radius: 999px;
+    transform-origin: left center; transition: transform 300ms var(--ease-out);
+  }
+  .band .z { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--ink-faint); min-width: 54px; text-align: right; }
+  .up i { background: var(--bad); }
+  .down i { background: var(--accent); }
+
+  .note {
+    color: var(--ink-faint); font-size: 12.5px; margin-top: 16px;
+    padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .err { color: var(--bad); font-size: 14px; margin-top: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 120ms !important; }
+    @starting-style { .view.on > * { opacity: 0; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Hum</h1>
+  <p class="sub">Machines tell you before they break. Point a microphone at one and listen.</p>
+
+  <!-- ================= idle ================= -->
+  <section class="view on panel" id="v-idle">
+    <div class="steps">
+      <div class="step"><b>1</b><div>
+        <p>Put the device near a running machine</p>
+        <small>A fridge, fan, pump, washing machine, laptop under load.</small>
+      </div></div>
+      <div class="step"><b>2</b><div>
+        <p>Hum listens for 45 seconds to learn what healthy sounds like</p>
+        <small>It builds a statistical fingerprint of that machine, in that room.</small>
+      </div></div>
+      <div class="step"><b>3</b><div>
+        <p>Then it watches for the sound drifting away from that fingerprint</p>
+        <small>And tells you which frequencies moved, not just that something changed.</small>
+      </div></div>
+    </div>
+
+    <div class="row">
+      <button id="start">Start listening</button>
+      <button class="ghost" id="demo">Run without a mic</button>
+    </div>
+    <p class="err" id="err" hidden></p>
+
+    <p class="note">
+      Audio never leaves this device. There is no server, no upload, and no account —
+      the analysis runs entirely in this tab, which is also why it works offline.
+    </p>
+  </section>
+
+  <!-- ================= learning ================= -->
+  <section class="view panel" id="v-learn">
+    <div class="ring">
+      <svg width="132" height="132">
+        <circle class="track" cx="66" cy="66" r="57"></circle>
+        <circle class="val" id="learn-ring" cx="66" cy="66" r="57"
+                stroke-dasharray="358.1" stroke-dashoffset="358.1"></circle>
+      </svg>
+      <b id="learn-left">45</b>
+    </div>
+    <div class="verdict">
+      <p class="big" style="font-size:20px">Learning what healthy sounds like</p>
+      <p class="why" id="learn-hint">Keep the machine running normally and stay quiet.</p>
+    </div>
+    <canvas id="learn-canvas" height="132"></canvas>
+    <p class="note">
+      Longer is better — the fingerprint has to cover the machine's whole normal
+      cycle. A fridge that hasn't switched its compressor on yet will look
+      anomalous the moment it does.
+    </p>
+  </section>
+
+  <!-- ================= monitoring ================= -->
+  <section class="view" id="v-watch">
+    <div class="panel">
+      <div class="verdict well" id="verdict">
+        <p class="big" id="v-big">Healthy</p>
+        <p class="why" id="v-why">Sounds like the machine you taught me.</p>
+      </div>
+
+      <div class="meter"><i id="meter-fill" style="transform:scaleX(0)"></i>
+        <span class="mark" id="meter-mark" style="left:40%"></span>
+      </div>
+      <div class="scale"><span>normal</span><span id="scale-thresh">alarm</span><span>severe</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Live spectrum — deviation from baseline</h3>
+      <canvas id="watch-canvas" height="132"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3 id="band-title">Bands furthest from normal</h3>
+      <div id="bands"></div>
+      <p class="note" id="watch-note">
+        Score is the RMS of the four most-deviant frequency bands, in robust
+        standard deviations from the baseline. The alarm needs the deviation to
+        persist — a single bang is not a fault.
+      </p>
+    </div>
+
+    <div class="panel row">
+      <button class="ghost" id="relearn">Learn again</button>
+      <button class="ghost" id="stop">Stop</button>
+      <span class="note" style="border:0;margin:0;padding:0" id="stats"></span>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================================
+   Hum — browser detector.
+
+   Mirrors hum/detector.py exactly: linear-below-500Hz / log-above filterbank,
+   log band energies, per-frame mean subtraction for gain invariance, robust
+   median/MAD baseline, top-k RMS z-score, median smoothing, and a threshold
+   calibrated on the same statistic the decision uses.
+
+   Kept in plain JS with no ML runtime on purpose — the whole point is that this
+   runs on a phone, offline, with nothing to install.
+   ========================================================================= */
+
+const CFG = {
+  fftSize: 4096,
+  nBands: 40,
+  fMin: 30,
+  fSplit: 500,
+  fMax: 8000,        // fixed regardless of device sample rate, so behaviour
+                     // does not change between a 44.1k laptop and a 48k phone
+  lowFraction: 0.45,
+  topK: 4,
+  smooth: 5,
+  margin: 2.5,
+  clipSeconds: 4,
+  baselineSeconds: 45,
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ---- band edges: linear low, log high (see detector.py for why not mel) ---- */
+function bandEdges() {
+  const nEdges = CFG.nBands + 2;
+  const nLow = Math.max(2, Math.round(nEdges * CFG.lowFraction));
+  const edges = [];
+  for (let i = 0; i < nLow; i++) {
+    edges.push(CFG.fMin + (CFG.fSplit - CFG.fMin) * (i / (nLow - 1)));
+  }
+  const nHigh = nEdges - nLow;
+  const logLo = Math.log10(CFG.fSplit), logHi = Math.log10(CFG.fMax);
+  for (let i = 1; i <= nHigh; i++) {
+    edges.push(Math.pow(10, logLo + (logHi - logLo) * (i / nHigh)));
+  }
+  return edges;
+}
+
+/* ---- triangular filterbank over analyser bins ---- */
+function buildBank(edges, nBins, binHz) {
+  const bank = [];
+  for (let b = 0; b < CFG.nBands; b++) {
+    const lo = edges[b] / binHz, mid = edges[b + 1] / binHz, hi = edges[b + 2] / binHz;
+    const weights = [];
+    let sum = 0;
+    const from = Math.max(0, Math.floor(lo)), to = Math.min(nBins - 1, Math.ceil(hi));
+    for (let k = from; k <= to; k++) {
+      let w = 0;
+      if (k >= lo && k <= mid) w = mid > lo ? (k - lo) / (mid - lo) : 1;
+      else if (k > mid && k <= hi) w = hi > mid ? (hi - k) / (hi - mid) : 1;
+      if (w > 0) { weights.push([k, w]); sum += w; }
+    }
+    // Area-normalise: wide high bands must not win on width alone.
+    bank.push(weights.map(([k, w]) => [k, w / (sum || 1)]));
+  }
+  return bank;
+}
+
+const median = (a) => {
+  if (!a.length) return 0;
+  const s = Float64Array.from(a).sort();
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+class Detector {
+  constructor(sampleRate, nBins) {
+    this.edges = bandEdges();
+    this.bank = buildBank(this.edges, nBins, sampleRate / CFG.fftSize);
+    this.baseline = null;
+    this.recent = [];       // smoothing window
+    this.history = [];      // for the sparkline
+  }
+
+  /* magnitude spectrum (linear) -> gain-invariant log band energies */
+  frame(mags) {
+    const out = new Float64Array(CFG.nBands);
+    let mean = 0;
+    for (let b = 0; b < CFG.nBands; b++) {
+      let e = 0;
+      for (const [k, w] of this.bank[b]) e += mags[k] * mags[k] * w;
+      const db = 10 * Math.log10(Math.max(e, 1e-12));
+      out[b] = db;
+      mean += db;
+    }
+    mean /= CFG.nBands;
+    // Gain invariance: keep only spectral shape. Without this, moving the phone
+    // closer raises every band equally and reads as a fault.
+    for (let b = 0; b < CFG.nBands; b++) out[b] -= mean;
+    return out;
+  }
+
+  fit(frames) {
+    const n = CFG.nBands;
+    const med = new Float64Array(n), scale = new Float64Array(n);
+    for (let b = 0; b < n; b++) {
+      const col = frames.map(f => f[b]);
+      med[b] = median(col);
+      scale[b] = 1.4826 * median(col.map(v => Math.abs(v - med[b])));
+    }
+    let maxScale = 0;
+    for (let b = 0; b < n; b++) maxScale = Math.max(maxScale, scale[b]);
+    const floor = Math.max(0.5, 0.05 * maxScale);
+    for (let b = 0; b < n; b++) scale[b] = Math.max(scale[b], floor);
+
+    this.baseline = { med, scale, threshold: Infinity };
+
+    // Calibrate on clip medians — the same statistic the alarm gates on.
+    const raw = frames.map(f => this.rawScore(f));
+    const smoothed = raw.map((_, i) => {
+      const from = Math.max(0, i - (CFG.smooth >> 1));
+      return median(raw.slice(from, from + CFG.smooth));
+    });
+    const perClip = Math.max(2, Math.round(CFG.clipSeconds * frames.length / CFG.baselineSeconds));
+    const step = Math.max(1, perClip >> 1);
+    const clipMeds = [];
+    for (let i = 0; i + perClip <= smoothed.length; i += step) {
+      clipMeds.push(median(smoothed.slice(i, i + perClip)));
+    }
+    const reference = clipMeds.length ? Math.max(...clipMeds) : median(smoothed);
+    this.baseline.threshold = Math.max(reference * CFG.margin, 1e-6);
+    return this.baseline;
+  }
+
+  z(frame) {
+    const { med, scale } = this.baseline;
+    const out = new Float64Array(CFG.nBands);
+    for (let b = 0; b < CFG.nBands; b++) out[b] = (frame[b] - med[b]) / scale[b];
+    return out;
+  }
+
+  rawScore(frame) {
+    const z = this.z(frame);
+    const abs = Array.from(z, Math.abs).sort((a, b) => b - a).slice(0, CFG.topK);
+    return Math.sqrt(abs.reduce((s, v) => s + v * v, 0) / abs.length);
+  }
+
+  /* smoothed score for a live frame, plus the band explanation */
+  observe(frame) {
+    const raw = this.rawScore(frame);
+    this.recent.push(raw);
+    if (this.recent.length > CFG.smooth) this.recent.shift();
+    const score = median(this.recent);
+
+    this.history.push(score);
+    if (this.history.length > 240) this.history.shift();
+
+    const z = this.z(frame);
+    const ranked = Array.from(z, (v, b) => ({ b, z: v }))
+      .sort((a, c) => Math.abs(c.z) - Math.abs(a.z)).slice(0, 5);
+
+    return { score, z, ranked, threshold: this.baseline.threshold };
+  }
+}
+
+/* ============================ audio plumbing ============================ */
+
+let ctx, analyser, source, stream, detector, rafId;
+let mode = "idle";
+let learnFrames = [], learnStart = 0, watchStart = 0;
+let synth = null;                 // demo generator when there is no mic
+let framesSeen = 0, alarmsSeen = 0;
+
+// Demo timeline, in seconds after monitoring begins: healthy for DEMO_HEALTHY,
+// then the fault ramps in over DEMO_RAMP. Driven by wall clock rather than a
+// frame counter — an earlier version counted frames from app start, so the
+// fault was already 67% present the moment monitoring began and the app
+// reported "not normal" immediately.
+const DEMO_HEALTHY = 6, DEMO_RAMP = 6;
+
+function show(view) {
+  for (const v of document.querySelectorAll(".view")) v.classList.remove("on");
+  $(view).classList.add("on");
+}
+
+async function startMic() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,   // all three would "helpfully" reshape the
+        noiseSuppression: false,   // spectrum we are trying to measure
+        autoGainControl: false,
+      },
+    });
+  } catch (e) {
+    $("err").hidden = false;
+    $("err").textContent =
+      "Microphone unavailable (" + e.name + "). Use “Run without a mic” to see it work.";
+    return;
+  }
+  await begin(() => {
+    source = ctx.createMediaStreamSource(stream);
+    source.connect(analyser);
+  });
+}
+
+async function startDemo() {
+  synth = { t: 0, fault: 0 };
+  await begin(() => {});
+  // Fault ramps in ~14s after monitoring starts, so the demo shows the transition.
+}
+
+async function begin(connect) {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume();
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = CFG.fftSize;
+  analyser.smoothingTimeConstant = 0;   // we do our own smoothing, deliberately
+  connect();
+
+  detector = new Detector(ctx.sampleRate, analyser.frequencyBinCount);
+  learnFrames = [];
+  learnStart = performance.now();
+  framesSeen = alarmsSeen = 0;
+  mode = "learn";
+  show("v-learn");
+  loop();
+}
+
+/* Synthesised spectrum for the no-mic demo: a running tone with harmonics,
+   plus — once the fault kicks in — broadband friction energy in the mid bands. */
+function synthMags(nBins, binHz) {
+  const mags = new Float32Array(nBins);
+  const running = 100;
+  for (let h = 1; h <= 5; h++) {
+    const amp = [1, 0.45, 0.22, 0.11, 0.05][h - 1];
+    const k = Math.round(running * h / binHz);
+    if (k < nBins) mags[k] += amp * 90;
+  }
+  for (let k = 1; k < nBins; k++) {
+    mags[k] += (Math.random() * 2) / Math.sqrt(k);          // pink-ish floor
+    const hz = k * binHz;
+    if (synth.fault > 0 && hz > 1200 && hz < 6000) {
+      mags[k] += synth.fault * 9 * Math.random();           // friction signature
+    }
+  }
+  return mags;
+}
+
+function readSpectrum() {
+  const n = analyser.frequencyBinCount;
+  if (synth) {
+    if (mode === "watch") {
+      const secs = (performance.now() - watchStart) / 1000;
+      synth.fault = Math.min(1, Math.max(0, (secs - DEMO_HEALTHY) / DEMO_RAMP));
+    } else {
+      synth.fault = 0;
+    }
+    return synthMags(n, ctx.sampleRate / CFG.fftSize);
+  }
+  const buf = new Float32Array(n);
+  analyser.getFloatFrequencyData(buf);           // dB
+  const mags = new Float32Array(n);
+  for (let k = 0; k < n; k++) mags[k] = Math.pow(10, buf[k] / 20);
+  return mags;
+}
+
+function loop() {
+  rafId = requestAnimationFrame(loop);
+  if (!ctx) return;
+
+  const mags = readSpectrum();
+  const frame = detector.frame(mags);
+
+  if (mode === "learn") {
+    learnFrames.push(frame);
+    const elapsed = (performance.now() - learnStart) / 1000;
+    const left = Math.max(0, CFG.baselineSeconds - elapsed);
+    $("learn-left").textContent = Math.ceil(left);
+    const frac = Math.min(1, elapsed / CFG.baselineSeconds);
+    $("learn-ring").style.strokeDashoffset = String(358.1 * (1 - frac));
+    drawSpectrum($("learn-canvas"), frame, null);
+
+    if (left <= 0 && learnFrames.length > 30) {
+      detector.fit(learnFrames);
+      $("scale-thresh").textContent = "alarm " + detector.baseline.threshold.toFixed(1);
+      mode = "watch";
+      watchStart = performance.now();
+      show("v-watch");
+    }
+    return;
+  }
+
+  if (mode === "watch") {
+    const r = detector.observe(frame);
+    framesSeen++;
+    if (r.score > r.threshold) alarmsSeen++;
+    render(r);
+    drawSpectrum($("watch-canvas"), frame, r.z);
+  }
+}
+
+/* ============================== rendering ============================== */
+
+function render(r) {
+  const ratio = r.score / r.threshold;
+  const box = $("verdict");
+  let cls, big, why;
+
+  if (ratio < 0.7) {
+    cls = "well"; big = "Healthy";
+    why = "Sounds like the machine you taught me.";
+  } else if (ratio < 1.0) {
+    cls = "warn"; big = "Drifting";
+    why = "Moving away from normal, but not past the alarm line yet.";
+  } else {
+    cls = "bad"; big = "Not normal";
+    why = "Persistent deviation from this machine's own baseline.";
+  }
+
+  box.className = "verdict " + cls;
+  if ($("v-big").textContent !== big) {
+    $("v-big").textContent = big;
+    $("v-why").textContent = why;
+  }
+
+  const fill = $("meter-fill");
+  fill.style.transform = "scaleX(" + Math.min(1, ratio / 2.5).toFixed(3) + ")";
+  fill.style.backgroundColor =
+    cls === "well" ? "var(--well)" : cls === "warn" ? "var(--warn)" : "var(--bad)";
+  $("meter-mark").style.left = (100 / 2.5) + "%";
+
+  $("stats").textContent =
+    `score ${r.score.toFixed(1)} · threshold ${r.threshold.toFixed(1)} · ` +
+    `${Math.round(100 * alarmsSeen / Math.max(1, framesSeen))}% of frames above line`;
+
+  // Scale bars against the largest deviation currently shown, floored at 12σ.
+  // A fixed clamp made every bar identical whenever the fault was strong (all
+  // five pinned at full width at +30σ), which hides exactly the ranking this
+  // panel exists to communicate. The floor stops small, harmless deviations
+  // from being stretched to look dramatic.
+  const ref = Math.max(12, ...r.ranked.map(x => Math.abs(x.z)));
+
+  const rows = r.ranked.map(({ b, z }) => {
+    const lo = detector.edges[b], hi = detector.edges[b + 2];
+    const mag = Math.min(1, Math.abs(z) / ref);
+    const label = lo < 1000 && hi < 1000
+      ? `${lo.toFixed(0)}–${hi.toFixed(0)} Hz`
+      : `${(lo / 1000).toFixed(1)}–${(hi / 1000).toFixed(1)} kHz`;
+    return `<div class="band ${z > 0 ? "up" : "down"}">
+      <span class="hz">${label}</span>
+      <span class="track2"><i style="transform:scaleX(${mag.toFixed(3)})"></i></span>
+      <span class="z">${z > 0 ? "+" : ""}${z.toFixed(1)}σ</span>
+    </div>`;
+  }).join("");
+  $("bands").innerHTML = rows;
+}
+
+function drawSpectrum(canvas, frame, z) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  const bw = w / CFG.nBands;
+  for (let b = 0; b < CFG.nBands; b++) {
+    // Height from band energy; colour from deviation once we have a baseline.
+    const v = Math.max(0, Math.min(1, (frame[b] + 30) / 60));
+    const bh = Math.max(2, v * (h - 8));
+    if (z) {
+      const dev = Math.min(1, Math.abs(z[b]) / 10);
+      g.fillStyle = z[b] > 0
+        ? `rgba(251,113,133,${0.25 + 0.75 * dev})`
+        : `rgba(96,165,250,${0.2 + 0.6 * dev})`;
+    } else {
+      g.fillStyle = "rgba(94,234,212,0.55)";
+    }
+    g.fillRect(b * bw + 1, h - bh - 4, bw - 2, bh);
+  }
+}
+
+/* ============================== controls ============================== */
+
+function teardown() {
+  cancelAnimationFrame(rafId);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (ctx) ctx.close();
+  ctx = analyser = source = stream = detector = null;
+  synth = null;
+  mode = "idle";
+}
+
+$("start").onclick = startMic;
+$("demo").onclick = startDemo;
+$("stop").onclick = () => { teardown(); show("v-idle"); };
+$("relearn").onclick = () => {
+  learnFrames = [];
+  learnStart = performance.now();
+  detector.recent = [];
+  detector.history = [];
+  framesSeen = alarmsSeen = 0;
+  if (synth) synth.fault = 0;
+  mode = "learn";
+  show("v-learn");
+};
+</script>
+</body>
+</html>
