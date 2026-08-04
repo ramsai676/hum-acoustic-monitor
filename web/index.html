@@ -632,10 +632,18 @@ function drawSpectrum(canvas, frame, z) {
     const v = Math.max(0, Math.min(1, (frame[b] + 30) / 60));
     const bh = Math.max(2, v * (h - 8));
     if (z) {
-      const dev = Math.min(1, Math.abs(z[b]) / 10);
-      g.fillStyle = z[b] > 0
-        ? `rgba(251,113,133,${0.25 + 0.75 * dev})`
-        : `rgba(96,165,250,${0.2 + 0.6 * dev})`;
+      // Stay neutral below 2 sigma. Colouring every small wobble red made a
+      // perfectly healthy machine look alarming, which trains people to ignore
+      // the colour exactly when it starts meaning something.
+      const dev = Math.abs(z[b]);
+      if (dev < 2) {
+        g.fillStyle = `rgba(94,234,212,${(0.30 + 0.10 * dev).toFixed(3)})`;
+      } else {
+        const t = Math.min(1, (dev - 2) / 8);
+        g.fillStyle = z[b] > 0
+          ? `rgba(251,113,133,${(0.35 + 0.65 * t).toFixed(3)})`
+          : `rgba(96,165,250,${(0.30 + 0.60 * t).toFixed(3)})`;
+      }
     } else {
       g.fillStyle = "rgba(94,234,212,0.55)";
     }
