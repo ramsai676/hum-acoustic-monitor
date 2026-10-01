@@ -1,4 +1,20 @@
-# Hum
+<!-- header:start -->
+<p align="center">
+  <img src=".github/banner.png" alt="Hum: Machines tell you before they break. Acoustic predictive maintenance in a browser tab." width="100%">
+</p>
+
+<p align="center">
+  <a href="https://ramsai676.github.io/hum-acoustic-monitor/"><img src="https://img.shields.io/badge/Live%20demo-Open%20in%20browser-2dd4bf?style=for-the-badge" alt="Live demo"></a>
+  <img src="https://img.shields.io/badge/-Python-1f2937?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <img src="docs/2-learning.png" alt="Hum screenshot" width="48%">
+  <img src="docs/4-fault.png" alt="Hum screenshot" width="48%">
+</p>
+
+<!-- header:end -->
 
 **Machines tell you before they break.** Point a microphone at one and listen.
 
